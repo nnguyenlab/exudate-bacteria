@@ -1,2 +1,5 @@
-# exudate-bacteria
-Measurement of how rhizosphere bacteria grow in different exudates
+# Rhizosphere bacteria growth in root exudates
+### Root exudate quality from different plant species influences the growth of rhizosphere microbes
+Plant roots release exudates that fuel microbial activities and can structure rhizosphere microbial communities. However, how root exudates from different plant species may select for different soil microbes in the rhizosphere is not well understood. Here, we investigate how root exudates from _Lactuca sativa_ (lettuce), _Brassica juncea_ (mustard cabbage), and _Zea mays_ (maize) contribute to the growth of rhizosphere bacteria isolated from these host plants. We showed that lettuce rhizosphere bacteria performed better in non-host exudates whereas mustard cabbage and maize rhizosphere bacteria performed similarly well in both host and non-host exudates. Our results demonstrate that root exudates from a plant species may favor the growth of its own rhizosphere bacteria, and hint at the mechanism that different plant species use to select for their specific suite of rhizosphere bacteria. These findings contribute to our understanding of how root exudates are involved in selecting distinct microbial communities in the rhizosphere.
+
+**This repository contains R commands and supplementary materials associated with this project.**
