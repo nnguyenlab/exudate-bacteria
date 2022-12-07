@@ -1,0 +1,384 @@
+getwd()
+setwd("/Volumes/GoogleDrive/My Drive/Bacterial_cell_counts/data-analysis/experiment")
+library(tidyverse)
+library(ggplot2)
+
+#let's import the data
+Bac_root_exudate<-read.csv("/Volumes/GoogleDrive/My Drive/Crop soil microbiome/Bacterial_cell_counts/data-analysis/NOC.csv")
+##clean the data to form data matrix with respective column, and remove day_ and only keep the day number
+Bac_root_exudate_tidy<- Bac_root_exudate%>% gather(key="Day", value="Numberofcells",6:14) %>% 
+  separate(Day, into=c("day","Day"), 4) %>% 
+  select(-day)
+
+####Data analysis combined#####
+library(ggplot2)
+boxplot(Bac_root_exudate_tidy$Numberofcells)#helps to see outliers
+boxplot(Bac_root_exudate_tidy$Numberofcells)$out #get the actual value of outliers
+#finding skewness value will help to find out what type of transformation could be better 
+#https://www.datanovia.com/en/lessons/transform-data-to-normal-distribution-in-r/ 
+library(moments)
+skewness(Bac_root_exudate_tidy$Numberofcells, na.rm=TRUE) #This represent we should go for log transformation
+#transform data without throwing outliers and see 
+Bac_root_exudate_tidy$log_NOC<-log(Bac_root_exudate_tidy$Numberofcells) #Should be careful when interpreting data
+boxplot(Bac_root_exudate_tidy$log_NOC)$out #get and see actual outliers 
+#assign outlier values into a vector and check the outliers
+outliers<-boxplot(Bac_root_exudate_tidy$log_NOC, plot=FALSE)$out
+#Remove outliers
+Bac_root_exudate_tidy_o<-Bac_root_exudate_tidy[-which(Bac_root_exudate_tidy$log_NOC %in% outliers),]
+outliers_tr<-boxplot(Bac_root_exudate_tidy_o$log_NOC)$out
+#Again remove outliers
+Bac_root_exudate_tidy_or<-Bac_root_exudate_tidy_o[-which(Bac_root_exudate_tidy_o$log_NOC %in% outliers_tr),]
+boxplot(Bac_root_exudate_tidy_or$log_NOC)$out
+skewness(Bac_root_exudate_tidy_or$log_NOC, na.rm=TRUE)
+library(ggpubr)
+ggdensity(Bac_root_exudate_tidy_or,x="log_NOC", fill="lightgray")+
+  stat_overlay_normal_density(color="red")
+
+shapiro.test(Bac_root_exudate_tidy_or$log_NOC) #not normally distributed
+
+bartlett.test(log_NOC~Exudate_source, data=Bac_root_exudate_tidy_or) #do not have homogenity of variances
+
+#first let's plot the curves for different isolates based on where they are grown from transformed
+#data because they allow to plot graph easily
+library(ggplot2)
+custom.col <-c("red3","maroon3","tomato", "royalblue2","steelblue","mediumblue", "yellowgreen","limegreen","springgreen")
+#plot  isolates with confidence intervals #performs better with transform data #add errorbars
+
+#Figure 1
+Bac_root_exudate_tidy_or %>% ggplot(aes(x=Day, y=log_NOC,  group=interaction(Isolate_host, Exudate_source))) +
+  geom_smooth(aes(color=interaction(Isolate_host, Exudate_source))) +theme_bw()+
+  scale_fill_grey ()+
+  labs(color= "Isolate host. Exudate source")+
+  ylab("Number of cells/µl (log10)") + xlab("Day") + theme_bw()+ 
+  geom_vline(xintercept=8, color="black",linetype="dotted", size=1) +
+  theme(text=element_text(size=16, face="bold")) +
+  scale_color_manual(values=custom.col)
+
+#Figure based on all isolates
+Bac_root_exudate_tidy_or %>% ggplot(aes(x=Day, y=log_NOC, group=Isolate_number)) +
+  geom_smooth(aes(color=Isolate_number)) +theme_bw()+
+  scale_fill_grey ()+
+  labs(color= "Isolate_name")+
+  ylab("Number of cells/µl (log10)") + xlab("Day") + theme_bw()+ 
+  geom_vline(xintercept=8, color="black",linetype="dotted", size=1) +
+  theme(text=element_text(size=16, face="bold"))
+
+#Statistical analysis for whole data set for day seven
+Tidy_may14_7thday<- filter(Bac_root_exudate_tidy_or, Day=="7")
+
+
+str(Tidy_may14_7thday) #get the information
+summary(Tidy_may14_7thday)
+shapiro.test(Tidy_may14_7thday$log_NOC) #normally distributed
+bartlett.test(log_NOC~Exudate_source, data=Tidy_may14_7thday) #have homogenity of variances
+library(ggpubr)
+library(ggplot2)
+library(gapminder)
+
+
+
+
+#main boxplot figure# #put statistical value from filtered analysis
+custom.col2<-c("#1b9e99","#d95f02", "#7579b9") #this color scheme seems to be good enough
+
+host_name<-c('Lettuce bacteria'="Lettuce rhizosphere bacteria", 'Mustard cabbage bacteria'="Mustard cabbage rhizosphere bacteria", 'Maize bacteria'="Maize rhizospehre bacteria")
+Exudate_source<-c('Exudate source')
+
+#Figure 3
+ggplot(Tidy_may14_7thday, aes(x=Isolate_host, y=log_NOC, color= Exudate_source)) +
+  geom_boxplot() +
+  xlab("") + ylab("Number of cells/µl (log10)") +
+  labs(color= "Exudate source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_host), scales="free", labeller=as_labeller(host_name)) +
+  #geom_text(data= HSD_may14_7thday_2, aes(label=cld))+
+  theme(text=element_text(size=16, face="bold"), legend.position="top", axis.text.x=element_text(size=0)) +
+  scale_color_manual(values=custom.col2) #this color scheme is same as Dark2
+
+Tidy_may14_7thday$Isolate_name_order=factor(Tidy_may14_7thday$Isolate_name, levels=c('Pseudomonas cf. hutmensis', 'Variovorax cf. guangxiensis','Micrococcus cf. luteus', 'Pseudomonas cf. chlororaphis', 'Erwinia cf. mallotivora', 'Arthrobacter cf. globiformis','Paenibacillus cf. pabul', 'Klebsiella cf. oxytoca', 'Pseudomonas cf. flavescens', 'Microbacterium cf. luteolum','Agrobacterium cf. fabrum', 'Leclercia cf. adecarboxylata', 'Paenarthrobacter cf. nitroguajacolicus', 'Luteibacter cf. anthropi', 'Staphylococcus cf. succinus', 'Ensifer cf. adhaerens'))
+Tidy_may14_7thday$UHC_order=factor(Tidy_may14_7thday$Isolate_name, levels=c('UHC112','UHC113','UHC115','UHC116','UHC117','UHC121','UHC123','UHC124', 'UHC125','UHC127','UHC128','UHC130','UHC131','UHC132','UHC135','UHC138'))
+library(dplyr)
+
+#Figure 2
+#Figure 2
+ggplot(Tidy_may14_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  facet_wrap(facet="Isolate_name_order", scales="free") +
+  geom_boxplot() +
+  xlab("") + ylab("log(Number of cells/µl)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  #facet_grid(cols=vars(Isolate_name), scales="free", labeller=as_labeller(Isolate_name_order)) +
+  theme(text=element_text(size=16, face="bold.italic"), legend.position="top", axis.text.x=element_text(angle=25, hjust=1, face="italic", size=0)) +
+  ylim(6.5,12) +
+  scale_color_brewer(palette="Dark2")
+
+
+####Filter the lettuce table for day7 and plot the graph and perform statistics
+Tidy_may14_L_7thday<- filter(Tidy_may14_7thday, Isolate_host=="Lettuce bacteria")
+summary(Tidy_may14_L_7thday)
+boxplot(Tidy_may14_L_7thday$log_NOC)$out
+
+shapiro.test(Tidy_may14_L_7thday$log_NOC) #normally distributed
+bartlett.test(log_NOC~Exudate_source, data=Tidy_may14_L_7thday) #have homogenity of variances
+#let's boxplot using boxplot
+library(ggpubr)
+library(ggplot2)
+library(colortools)
+library(ggsci)
+#Lettuce isolate figure
+Isolates_lettuce_boxplot<-ggplot(Tidy_may14_L_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  facet_wrap(facet="Isolate_name", ncol=3) +
+  geom_boxplot() +
+  xlab("") + ylab("Number of cells/µl(log10)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_name), scales="free") +
+  theme(text=element_text(size=22, face="bold"), legend.position="top", axis.text.x=element_text(angle=25, hjust=1, face="italic", size=0)) +
+  scale_color_brewer(palette="Dark2")
+par(mfrow=c(1,3))
+
+Tidy_may14_L_7thday %>% ggplot(aes(x=Exudate_source, y=log_NOC, color=Exudate_source)) + 
+  geom_boxplot() +
+  #labs(color= "Exudate_source")+
+  theme_bw() +
+  ylab("log(Number of cells/µl of media)") + xlab("Exudate_source")+
+  theme(text=element_text(size=16, face="bold")) +
+  scale_color_brewer(palette="Dark2")
+
+
+Lettuce_isolate_boxplot<-ggplot(Tidy_may14_L_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  #facet_wrap(facet="Isolate_name", ncol=3) +
+  geom_boxplot() +
+  xlab("") + ylab("log(Number of cells/µl)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_name), scales="free") +
+  theme(text=element_text(size=16, face="bold"), legend.position="top", axis.text.x=element_text(angle=25, hjust=1, face="italic", size=0)) +
+  scale_color_brewer(palette="Dark2")
+
+#let's perform two way analysis of variance #first run factorial than additive model
+library(agricolae)
+aov_L_7thday<- aov(log_NOC~Isolate_name*Exudate_source, data=Tidy_may14_L_7thday)
+summary(aov_L_7thday)#talk about the interaction in the literature by splitting them into different 
+
+#Work on this: posthoc analysis using Tukey HSD because we removed outliers whichcould have made the unequal number of sample sizes
+library(agricolae)
+HSD_may14_L_7thday_2<-with(Tidy_may14_L_7thday, HSD.test(log_NOC,Exudate_source, DFerror=40, MSerror=0.282))
+
+
+#since there is a interaction we analyze each isolate seperately
+Tidy_may14_L_7thday_112<- filter(Tidy_may14_L_7thday, Isolate_number=="UHC112")
+aov_L_7thday_112<-aov(log_NOC~Exudate_source, data=Tidy_may14_L_7thday_112)
+summary(aov_L_7thday_112)
+HSD.test(aov_L_7thday_112, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_L_7thday_113<- filter(Tidy_may14_L_7thday, Isolate_number=="UHC113")
+aov_L_7thday_113<-aov(log_NOC~Exudate_source, data=Tidy_may14_L_7thday_113)
+summary(aov_L_7thday_113)
+HSD.test(aov_L_7thday_113, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+
+Tidy_may14_L_7thday_115<- filter(Tidy_may14_L_7thday, Isolate_number=="UHC115")
+aov_L_7thday_115<-aov(log_NOC~Exudate_source, data=Tidy_may14_L_7thday_115)
+summary(aov_L_7thday_115)
+HSD.test(aov_L_7thday_115, "Exudate_source", group=TRUE, console=TRUE)
+
+Tidy_may14_L_7thday_116<- filter(Tidy_may14_L_7thday, Isolate_number=="UHC116")
+aov_L_7thday_116<-aov(log_NOC~Exudate_source, data=Tidy_may14_L_7thday_116)
+summary(aov_L_7thday_116)
+HSD.test(aov_L_7thday_116, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_L_7thday_117<- filter(Tidy_may14_L_7thday, Isolate_number=="UHC117")
+aov_L_7thday_117<-aov(log_NOC~Exudate_source, data=Tidy_may14_L_7thday_117)
+summary(aov_L_7thday_117)
+HSD.test(aov_L_7thday_117, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+
+#####let's first work on isolates isolated from Kaichoy rhizosphere#
+#filter the isolates isolated from kaichoy crops#
+
+###Filter the kaichoy table for day7 and plot the graph and perform statistics
+Tidy_may14_K_7thday<- filter(Tidy_may14_7thday, Isolate_host=="Mustard cabbage bacteria")
+summary(Tidy_may14_K_7thday)
+boxplot(Tidy_may14_K_7thday$log_NOC)$out
+
+library(moments)
+skewness(Tidy_may14_K_7thday$log_NOC)
+shapiro.test(Tidy_may14_K_7thday$log_NOC) # normally distributed
+bartlett.test(log_NOC~Exudate_source, data=Tidy_may14_K_7thday) #have homogenity of variances
+#let's boxplot using boxplot
+library(ggpubr)
+library(ggplot2)
+Isolates_kaichoy_boxplot<-ggplot(Tidy_may14_K_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  geom_boxplot() +
+  xlab("") + ylab("log(Number of cells/µl)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_name), scales="free") +
+  theme(text=element_text(size=22, face="bold"), legend.position="top", axis.text.x=element_text(angle=45, hjust=1, face="italic", size=0)) +
+  scale_color_brewer(palette="Dark2")
+
+Tidy_may14_K_7thday %>% ggplot(aes(x=Exudate_source, y=log_NOC, color=Exudate_source)) + 
+  geom_boxplot() +
+  #labs(color= "Exudate_source")+
+  theme_bw() +
+  ylab("log(Number of cells/µl of media)") + xlab("Exudate_source")+
+  theme(text=element_text(size=16, face="bold")) +
+  scale_color_brewer(palette="Dark2")
+
+
+#let's perform two way analysis of variance #first run interaction model than additive model
+aov_K_7thday<- aov(log_NOC~Isolate_name*Exudate_source, data=Tidy_may14_K_7thday)
+summary(aov_K_7thday) #No interacitoneffect 
+
+#work on this: posthoc analysis using Tukey HSD because we removed outliers whichcould have made the unequal number of sample sizes#inexact dataset I will becomparingmre than 5 mean comp
+HSD_may14_K_7thday_1<-with(Tidy_may14_K_7thday, HSD.test(log_NOC,Isolate_name, DFerror=22, MSerror=0.315))
+HSD_may14_K_7thday_2<-with(Tidy_may14_K_7thday, HSD.test(log_NOC,Exudate_source, DFerror=48, MSerror=0.356))
+
+#Eventhough there is no interaction effect we split them and see the difference
+
+Tidy_may14_K_7thday_121<- filter(Tidy_may14_K_7thday, Isolate_number=="UHC121")
+aov_K_7thday_121<-aov(log_NOC~Exudate_source, data=Tidy_may14_K_7thday_121)
+summary(aov_K_7thday_121)
+HSD.test(aov_K_7thday_121, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+
+Tidy_may14_K_7thday_123<- filter(Tidy_may14_K_7thday, Isolate_number=="UHC123")
+aov_K_7thday_123<-aov(log_NOC~Exudate_source, data=Tidy_may14_K_7thday_123)
+summary(aov_K_7thday_123)
+HSD.test(aov_K_7thday_123, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_K_7thday_124<- filter(Tidy_may14_K_7thday, Isolate_number=="UHC124")
+aov_K_7thday_124<-aov(log_NOC~Exudate_source, data=Tidy_may14_K_7thday_124)
+summary(aov_K_7thday_124)
+HSD.test(aov_K_7thday_124, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_K_7thday_125<- filter(Tidy_may14_K_7thday, Isolate_number=="UHC125")
+aov_K_7thday_125<-aov(log_NOC~Exudate_source, data=Tidy_may14_K_7thday_125)
+summary(aov_K_7thday_125)
+HSD.test(aov_K_7thday_125, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_K_7thday_127<- filter(Tidy_may14_K_7thday, Isolate_number=="UHC127")
+aov_K_7thday_127<-aov(log_NOC~Exudate_source, data=Tidy_may14_K_7thday_127)
+summary(aov_K_7thday_127)
+HSD.test(aov_K_7thday_127, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_K_7thday_128<- filter(Tidy_may14_K_7thday, Isolate_number=="UHC128")
+aov_K_7thday_128<-aov(log_NOC~Exudate_source, data=Tidy_may14_K_7thday_128)
+summary(aov_K_7thday_128)
+HSD.test(aov_K_7thday_128, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+
+
+###Filter the  day7 table for maize and plot the graph and perform statistics
+Tidy_may14_M_7thday<- filter(Tidy_may14_7thday, Isolate_host=="Maize bacteria")
+summary(Tidy_may14_M_7thday)
+shapiro.test(Tidy_may14_M_7thday$log_NOC) #normally distributed
+bartlett.test(log_NOC~Exudate_source, data=Tidy_may14_M_7thday) #have homogenity of variances
+#let's boxplot using boxplot
+library(ggpubr)
+library(ggplot2)
+
+Isolates_maize_boxplot<-ggplot(Tidy_may14_M_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  geom_boxplot() +
+  xlab("") + ylab("log(Number of cells/µl)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_name), scales="free") +
+  theme(text=element_text(size=22, face="bold"), legend.position="top", axis.text.x=element_text(angle=45, hjust=1, face="italic", size=0)) +
+  scale_color_brewer(palette="Dark2")
+
+ggplot(Tidy_may14_L_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  #facet_wrap(facet="Isolate_name", ncol=3) +
+  geom_boxplot() +
+  xlab("") + ylab("log(Number of cells/µl)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_name), scales="free") +
+  theme(text=element_text(size=16, face="bold"), legend.position="top", axis.text.x=element_text(angle=25, hjust=1, face="italic", size=0)) +
+  scale_color_brewer(palette="Dark2")
+
+Tidy_may14_M_7thday %>% ggplot(aes(x=Exudate_source, y=log_NOC, color=Exudate_source)) + 
+  geom_boxplot() +
+  #labs(color= "Exudate_source")+
+  theme_bw() +
+  ylab("log(Number of cells/µl of media)") + xlab("Exudate_source")+
+  theme(text=element_text(size=16, face="bold")) +
+  scale_color_brewer(palette="Dark2")
+
+#let's perform two way analysis of variance #first run interaction model than additive model
+aov_M_7thday<- aov(log_NOC~Isolate_number* Exudate_source, data=Tidy_may14_M_7thday)
+summary(aov_M_7thday)
+#work on this: posthoc analysis using Tukey HSD because we removed outliers whichcould have made the unequal number of sample sizes#inexact dataset I will becomparingmre than 5 mean comp
+HSD_may14_M_7thday_1<-with(Tidy_may14_M_7thday, HSD.test(log_NOC,Isolate_number, DFerror=20, MSerror=0.389))
+HSD_may14_M_7thday_2<-with(Tidy_may14_M_7thday, HSD.test(log_NOC,Exudate_source, DFerror=40, MSerror=0.4158))
+
+#There is no effect when grown in but there is interaction effect so we see it isolate wise
+Tidy_may14_M_7thday_130<- filter(Tidy_may14_M_7thday, Isolate_number=="UHC130")
+aov_M_7thday_130<-aov(log_NOC~Exudate_source, data=Tidy_may14_M_7thday_130)
+summary(aov_M_7thday_130)
+HSD.test(aov_M_7thday_130, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_M_7thday_131<- filter(Tidy_may14_M_7thday, Isolate_number=="UHC131")
+aov_M_7thday_131<-aov(log_NOC~Exudate_source, data=Tidy_may14_M_7thday_131)
+summary(aov_M_7thday_131)
+HSD.test(aov_M_7thday_131, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+
+Tidy_may14_M_7thday_132<- filter(Tidy_may14_M_7thday, Isolate_number=="UHC132")
+aov_M_7thday_132<-aov(log_NOC~Exudate_source, data=Tidy_may14_M_7thday_132)
+summary(aov_M_7thday_132)
+HSD.test(aov_M_7thday_132, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_M_7thday_135<- filter(Tidy_may14_M_7thday, Isolate_number=="UHC135")
+aov_M_7thday_135<-aov(log_NOC~Exudate_source, data=Tidy_may14_M_7thday_135)
+summary(aov_M_7thday_135)
+HSD.test(aov_M_7thday_135, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+Tidy_may14_M_7thday_138<- filter(Tidy_may14_M_7thday, Isolate_number=="UHC138")
+aov_M_7thday_138<-aov(log_NOC~Exudate_source, data=Tidy_may14_M_7thday_138)
+summary(aov_M_7thday_138)
+HSD.test(aov_M_7thday_138, "Exudate_source", group=TRUE, console=TRUE, main="")
+
+
+#Final figures:
+#Figure 1
+Bac_root_exudate_tidy_or %>% ggplot(aes(x=Day, y=log_NOC,  group=interaction(Isolate_host, Exudate_source))) +
+  geom_smooth(aes(color=interaction(Isolate_host, Exudate_source))) +theme_bw()+
+  scale_fill_grey ()+
+  labs(color= "Isolate host. Exudate source")+
+  ylab("Number of cells/µl (log10)") + xlab("Day") + theme_bw()+ 
+  geom_vline(xintercept=8, color="black",linetype="dotted", size=1) +
+  theme(text=element_text(size=16, face="bold")) +
+  scale_color_manual(values=custom.col)
+
+#Figure 2
+Tidy_may14_7thday$Isolate_name_order=factor(Tidy_may14_7thday$Isolate_name, levels=c('Pseudomonas cf. hutmensis', 'Variovorax cf. guangxiensis','Micrococcus cf. luteus', 'Pseudomonas cf. chlororaphis', 'Erwinia cf. mallotivora', 'Arthrobacter cf. globiformis','Paenibacillus cf. pabul', 'Klebsiella cf. oxytoca', 'Pseudomonas cf. flavescens', 'Microbacterium cf. luteolum','Agrobacterium cf. fabrum', 'Leclercia cf. adecarboxylata', 'Paenarthrobacter cf. nitroguajacolicus', 'Luteibacter cf. anthropi', 'Staphylococcus cf. succinus', 'Ensifer cf. adhaerens'))
+Tidy_may14_7thday$UHC_order=factor(Tidy_may14_7thday$Isolate_name, levels=c('UHC112','UHC113','UHC115','UHC116','UHC117','UHC121','UHC123','UHC124', 'UHC125','UHC127','UHC128','UHC130','UHC131','UHC132','UHC135','UHC138'))
+library(dplyr)
+
+#Figure 2
+ggplot(Tidy_may14_7thday, aes(x=reorder(Isolate_name, +log_NOC), y=log_NOC, color= Exudate_source)) +
+  facet_wrap(facet="Isolate_name_order", scales="free") +
+  geom_boxplot() +
+  xlab("") + ylab("log(Number of cells/µl)") +
+  labs(color= "Exudate_source")+
+  theme_bw() +
+  #facet_grid(cols=vars(Isolate_name), scales="free", labeller=as_labeller(Isolate_name_order)) +
+  theme(text=element_text(size=16, face="bold.italic"), legend.position="top", axis.text.x=element_text(angle=25, hjust=1, face="italic", size=0)) +
+  ylim(6.5,12) +
+  scale_color_brewer(palette="Dark2")
+
+
+#Figure 3
+ggplot(Tidy_may14_7thday, aes(x=Isolate_host, y=log_NOC, color= Exudate_source)) +
+  geom_boxplot() +
+  xlab("") + ylab("Number of cells/µl (log10)") +
+  labs(color= "Exudate source")+
+  theme_bw() +
+  facet_grid(cols=vars(Isolate_host), scales="free", labeller=as_labeller(host_name)) +
+  #geom_text(data= HSD_may14_7thday_2, aes(label=cld))+
+  theme(text=element_text(size=16, face="bold"), legend.position="top", axis.text.x=element_text(size=0)) +
+  scale_color_manual(values=custom.col2) #this color scheme is same as Dark2
+
+
